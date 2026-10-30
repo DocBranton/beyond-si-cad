@@ -1,0 +1,8 @@
+command: ["node", "server/index.js"]
+env:
+  - name: SERVING_ENDPOINT
+    value: "databricks-llama-4-maverick"
+  - name: PROJECTS_VOLUME
+    value: ""
+  - name: SERVICE_THEME
+    value: "air-force"

@@ -1,0 +1,14 @@
+bundle:
+  name: beyond-si-cad
+
+resources:
+  apps:
+    beyond_si_cad:
+      name: beyond-si-cad
+      description: Super Intelligent parametric CAD with closed-loop SI planner
+      source_code_path: .
+
+targets:
+  dev:
+    mode: development
+    default: true
