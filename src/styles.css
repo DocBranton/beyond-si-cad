@@ -1,0 +1,11 @@
+body { margin: 0; font-family: system-ui, sans-serif; background: #0b1220; color: #e8eefc; }
+.app { max-width: 960px; margin: 0 auto; padding: 24px; }
+header h1 { margin: 0 0 4px; }
+header p { margin: 0 0 24px; color: #8aa0c8; }
+textarea { width: 100%; box-sizing: border-box; padding: 8px; font: inherit; background: #121a2b; color: inherit; border: 1px solid #2a3a5a; border-radius: 6px; }
+button { margin-top: 12px; padding: 8px 16px; background: #1e6fff; color: white; border: 0; border-radius: 6px; cursor: pointer; }
+button:disabled { opacity: 0.5; }
+.error { margin-top: 12px; padding: 8px; background: #3a1a1a; border-radius: 6px; }
+.note { color: #e6b800; }
+pre { background: #121a2b; padding: 12px; border-radius: 6px; overflow: auto; font-size: 12px; }
+section { margin-top: 24px; }

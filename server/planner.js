@@ -1,20 +1,34 @@
 // Closed-loop SI planner for Beyond SI-CAD.
 // Propose → regenerate against kernel → feed diagnostics back → revise (max 3 turns).
-// Only a kernel-accepted plan (or an explicit partial) is returned for user approval.
 import { parsePlan, PLAN_GUIDE } from "../shared/plan-schema.js";
+import { api, isConfigured } from "./databricks.js";
 
 const SYSTEM = `You are the planning component of Beyond SI-CAD, a parametric mechanical CAD workbench.
 You convert design intent into a feature plan. You never write code.
 ${PLAN_GUIDE}
-When given kernel diagnostics, revise the plan to fix the reported errors. Do not invent unsupported operations.`;
+When given kernel diagnostics, revise the plan to fix the reported errors. Do not invent unsupported operations.
+Return only the JSON object.`;
+
+export function siStatus() {
+  const endpoint = process.env.SERVING_ENDPOINT;
+  const reason = !endpoint
+    ? "SERVING_ENDPOINT is not set"
+    : !isConfigured()
+      ? "DATABRICKS_HOST is not set"
+      : null;
+  return { configured: !reason, endpoint: endpoint || null, reason };
+}
 
 export async function planWithLoop(req, { prompt, current, regenerate }) {
-  // regenerate is injected so the planner can call the kernel (server-side or via worker result).
-  // In the foundation this is a stub; wire to replicad regenerate when the engine is present.
   const maxTurns = 3;
   let messages = [
     { role: "system", content: SYSTEM },
-    { role: "user", content: current ? `Current plan:\n${JSON.stringify(current)}\n\nRequest: ${prompt}` : `Request: ${prompt}` },
+    {
+      role: "user",
+      content: current
+        ? `Current plan (modify it; keep ids of unchanged features):\n${JSON.stringify(current)}\n\nRequest: ${prompt}`
+        : `Request: ${prompt}`,
+    },
   ];
 
   let lastPlan = null;
@@ -26,7 +40,10 @@ export async function planWithLoop(req, { prompt, current, regenerate }) {
     try {
       plan = parsePlan(extractJson(text));
     } catch (e) {
-      messages.push({ role: "assistant", content: text }, { role: "user", content: `Schema error: ${e.message}. Return corrected JSON only.` });
+      messages.push(
+        { role: "assistant", content: text },
+        { role: "user", content: `Schema error: ${e.message}. Return the corrected JSON object only.` },
+      );
       continue;
     }
 
@@ -50,20 +67,33 @@ export async function planWithLoop(req, { prompt, current, regenerate }) {
     );
   }
 
-  return { plan: lastPlan, turns: maxTurns, verified: false, report: lastReport, note: "max turns reached; review assumptions" };
+  return {
+    plan: lastPlan,
+    turns: maxTurns,
+    verified: false,
+    report: lastReport,
+    note: "max turns reached; review assumptions",
+  };
 }
 
 function extractJson(text) {
   const start = text.indexOf("{");
   const end = text.lastIndexOf("}");
-  if (start < 0 || end <= start) throw new Error("no JSON object");
+  if (start < 0 || end <= start) throw new Error("the model did not return a JSON object");
   return JSON.parse(text.slice(start, end + 1));
 }
 
 async function callModel(req, messages) {
   const endpoint = process.env.SERVING_ENDPOINT;
-  if (!endpoint) throw new Error("SERVING_ENDPOINT not set");
-  // Wire to Databricks Model Serving via the app's auth (same pattern as si-cad-workbench).
-  // Placeholder for the foundation commit.
-  throw new Error("Model Serving call not yet wired — set SERVING_ENDPOINT and implement api()");
+  if (!endpoint) throw new Error("SERVING_ENDPOINT is not set");
+  const res = await api(req, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
+    method: "POST",
+    body: { messages, max_tokens: 4000, temperature: 0 },
+    identity: "app",
+  });
+  const j = await res.json();
+  const content = j.choices?.[0]?.message?.content;
+  const text = Array.isArray(content) ? content.map((c) => c.text ?? "").join("") : content;
+  if (!text) throw new Error("empty response from the serving endpoint");
+  return text;
 }
