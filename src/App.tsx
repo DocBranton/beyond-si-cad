@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Viewport } from "./ui/Viewport";
 
 export function App() {
   const [prompt, setPrompt] = useState("Design a 60 mm base diameter bottle that lofts to a 28 mm neck over 180 mm height.");
@@ -25,6 +26,8 @@ export function App() {
     }
   }
 
+  const meshes = result?.report?.bodies?.map((b: any) => b.mesh).filter(Boolean) ?? [];
+
   return (
     <div className="app">
       <header>
@@ -46,6 +49,7 @@ export function App() {
               Plan {result.verified ? "(verified)" : "(unverified)"} — {result.turns} turn{result.turns === 1 ? "" : "s"}
             </h2>
             {result.note && <p className="note">{result.note}</p>}
+            {meshes.length > 0 && <Viewport meshes={meshes} />}
             <pre>{JSON.stringify(result.plan, null, 2)}</pre>
             {result.plan?.assumptions?.length ? (
               <ul>

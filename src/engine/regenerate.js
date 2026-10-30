@@ -65,12 +65,10 @@ function applyFeature(r, shape, f, num) {
       const [u, v] = (f.at || [0, 0]).map(num);
       const drawing = drawProfile(r, f.profile, num).translate(u, v);
       const axis = f.axis || "Z";
-      // replicad: sketch.revolve(angle, { origin, direction }) or similar; fallback to documented API
       let solid;
       try {
         solid = drawing.sketchOnPlane(f.plane || "XZ").revolve(angle);
       } catch {
-        // Alternative path if revolve signature differs
         solid = drawing.sketchOnPlane(f.plane || "XZ").revolve(angle, [0, 0, 0], axis === "X" ? [1, 0, 0] : axis === "Y" ? [0, 1, 0] : [0, 0, 1]);
       }
       if (f.mode === "cut" && shape) return { shape: shape.cut(solid) };
@@ -92,7 +90,6 @@ function applyFeature(r, shape, f, num) {
     case "hole": {
       if (!shape) throw new Error("hole needs an existing solid");
       const d = positive("diameter", num(f.diameter));
-      // Simplified: single through hole at origin of face for foundation; expand later
       const solid = r.makeCylinder(d / 2, 1000, [0, 0, -1], [0, 0, 1]);
       return { shape: shape.cut(solid) };
     }
@@ -110,6 +107,20 @@ function applyFeature(r, shape, f, num) {
     }
     default:
       throw new Error(`unknown operation ${f.op}`);
+  }
+}
+
+function meshOf(shape) {
+  if (!shape) return null;
+  try {
+    const mesh = shape.mesh({ tolerance: 0.1, angularTolerance: 15 });
+    return {
+      vertices: Array.from(mesh.vertices),
+      normals: Array.from(mesh.normals),
+      triangles: Array.from(mesh.triangles),
+    };
+  } catch {
+    return null;
   }
 }
 
@@ -138,7 +149,19 @@ export function regenerate(r, plan, opts = {}) {
         features[f.id] = { state: "error", message: e.message || String(e) };
       }
     }
-    bodies.push({ id: body.id, name: body.name, shape, failed });
+    bodies.push({
+      id: body.id,
+      name: body.name,
+      shape,
+      failed,
+      mesh: meshOf(shape),
+    });
   }
-  return { bodies, features, parameters: values, parameterErrors: paramErrors, valid: bodies.every((b) => !b.failed && b.shape) };
+  return {
+    bodies: bodies.map(({ shape, ...rest }) => rest), // drop non-serializable shape
+    features,
+    parameters: values,
+    parameterErrors: paramErrors,
+    valid: bodies.every((b) => !b.failed && b.shape),
+  };
 }
